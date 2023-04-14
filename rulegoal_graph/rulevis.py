@@ -3,15 +3,14 @@ import pandas as pd
 import clingo.ast as ast
 
 
-def extract_rel(file_add):
+def extract_rel(file_name):
     prg = []
-    ast.parse_files(file_add, lambda x: prg.append(x))
+    ast.parse_files(file_name, lambda x: prg.append(x))
     result = []
 
     minted_rules = []
     rule_no = 0
     for i, dd in enumerate(prg):
-        # print(i,str(x))
         head = []
         body = []
         is_disjunction = 0
@@ -29,11 +28,17 @@ def extract_rel(file_add):
                 for h in dd.head.atom.values():
                     try:
                         head.append(
-                            "{name}/{arity}".format(name=h.name,
-                                                    arity=len(h.arguments))
+                            "{name}/{arity}".format(
+                                name=h.name,
+                                arity=len(h.arguments),
+                            )
                         )
                     except BaseException as ex:
-                        print("head err:", ex, str(dd))
+                        print(
+                            "head err:",
+                            ex,
+                            str(dd),
+                        )
                         head.append("{name}".format(name=h.name))
                         pass
             for b in dd.body:
@@ -48,9 +53,18 @@ def extract_rel(file_add):
                         )
                     )
                 except BaseException as ex:
-                    print("body err:", ex, str(dd), str(b.atom))
-                    body.append(("{name}".format(name=b.atom.values()[0].name),
-                                b.sign))
+                    print(
+                        "body err:",
+                        ex,
+                        str(dd),
+                        str(b.atom),
+                    )
+                    body.append(
+                        (
+                            "{name}".format(name=b.atom.values()[0].name),
+                            b.sign,
+                        )
+                    )
                     pass
 
             for h in head:
@@ -65,22 +79,30 @@ def extract_rel(file_add):
                         ]
                     )
         except BaseException as ex:
-            print("err:", ex, str(dd))
             pass
+            print("err:", ex, str(dd))
+
         minted_rules.append((rule_no, str(dd)))
         rule_no += 1
 
     return (result, minted_rules, prg)
 
 
-def rule_vis(file_add):
-
-    file_add = [file_add]
+# the main function to extract rules
+def rule_vis(file_name):
+    file_name = [file_name]
     G = pgv.AGraph(overlap=False, directed=True, rankdir="BT")
-    lst, mint_rl, prg = extract_rel(file_add)
+    lst, mint_rl, prg = extract_rel(file_name)
 
     df = pd.DataFrame(
-        lst, columns=["body", "head", "rule_no", "negation", "is_disjunction"]
+        lst,
+        columns=[
+            "body",
+            "head",
+            "rule_no",
+            "negation",
+            "is_disjunction",
+        ],
     )
 
     for row_no in range(len(df)):
@@ -139,8 +161,10 @@ def rule_vis(file_add):
                 fontname="Palatino-Italic",
             )
         G.add_edge(
-            "R" + str(rule_no), df.loc[row_no, "head"],
-            weight=14, color="#b26e37"
+            "R" + str(rule_no),
+            df.loc[row_no, "head"],
+            weight=14,
+            color="#b26e37",
         )
 
     # save pdf
