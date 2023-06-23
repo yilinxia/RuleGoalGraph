@@ -1,98 +1,143 @@
 import pygraphviz as pgv
 import pandas as pd
 import clingo.ast as ast
+import os
 
 
 def extract_rel(file_name):
+    # store the programs including program base and rules
     prg = []
     ast.parse_files(file_name, lambda x: prg.append(x))
-    result = []
 
+    result = []
     minted_rules = []
     rule_no = 0
-    for i, dd in enumerate(prg):
+
+    # for every single line of scripts including rule_id and rule_content
+    for rule_id, rule_content in enumerate(prg):
         head = []
         body = []
+        # default settings
         is_disjunction = 0
-        try:
-            if str(dd.head.ast_type) == "ASTType.Disjunction":
-                for det in dd.head.elements:
-                    head.append(
-                        "{name}/{arity}".format(
-                            name=det.literal.atom.symbol.name,
-                            arity=len(det.literal.atom.symbol.arguments),
+        # skip #program base
+        if rule_id > 0:
+            try:
+                # ===============head part===================
+                # the processed rule head is disjunction
+                if str(rule_content.head.ast_type) == "ASTType.Disjunction":
+                    # literals in the head
+
+                    for disjunctive_literal in rule_content.head.elements:
+                        arity = len(disjunctive_literal.literal.atom.symbol.arguments)
+                        temp_variable_ls = []
+                        for variable_id in range(arity):
+                            temp_variable_ls.append(
+                                disjunctive_literal.literal.atom.symbol.arguments[
+                                    variable_id
+                                ].values()[1]
+                            )
+                        head.append(
+                            "{literal_name}/{arity_names}".format(
+                                # relationship name
+                                literal_name=disjunctive_literal.literal.atom.symbol.name,
+                                # number of variables
+                                arity_names=len(temp_variable_ls),
+                            )
                         )
-                    )
-                is_disjunction = 1
-            else:
-                for h in dd.head.atom.values():
+                    is_disjunction = 1
+
+                # the processed rule head is not disjunction
+                else:
+                    arity = len(rule_content.head.atom.symbol.arguments)
+                    temp_variable_ls = []
+                    for variable_id in range(arity):
+                        temp_variable_ls.append(
+                            rule_content.head.atom.symbol.arguments[variable_id].values()[1]
+                        )
                     try:
                         head.append(
-                            "{name}/{arity}".format(
-                                name=h.name,
-                                arity=len(h.arguments),
+                            "{literal_name}/{arity_names}".format(
+                                literal_name=rule_content.head.atom.symbol.name,
+                                arity_names=len(temp_variable_ls),
                             )
                         )
                     except BaseException as ex:
                         print(
                             "head err:",
                             ex,
-                            str(dd),
+                            str(rule_content),
                         )
-                        head.append("{name}".format(name=h.name))
+                        head.append("{name}".format(name=rule_content.head.atom.symbol.name))
                         pass
-            for b in dd.body:
-                try:
-                    body.append(
-                        (
-                            "{name}/{arity}".format(
-                                name=b.atom.values()[0].name,
-                                arity=len(b.atom.symbol.values()[2]),
-                            ),
-                            b.sign,
-                        )
-                    )
-                except BaseException as ex:
-                    print(
-                        "body err:",
-                        ex,
-                        str(dd),
-                        str(b.atom),
-                    )
-                    body.append(
-                        (
-                            "{name}".format(name=b.atom.values()[0].name),
-                            b.sign,
-                        )
-                    )
-                    pass
+                # ===============body part===================
+                # start to process body part
+                for body_literal in rule_content.body:
+                    try:
+                        #
+                        if str(body_literal.atom.ast_type) == "ASTType.SymbolicAtom":
+                            arity = len(body_literal.atom.symbol.arguments)
+                            temp_arg_ls = []
+                            for arg_id in range(arity):
+                                temp_arg_ls.append(body_literal.atom.symbol.arguments[arg_id].name)
+                            body.append(
+                                (
+                                    "{literal_name}/{arity_names}".format(
+                                        literal_name=body_literal.atom.symbol.name,
+                                        arity_names=len(temp_arg_ls),
+                                    ),
+                                    # sign indicate whether the literal is
+                                    # positive (0) negative (1) or not not(2)
+                                    body_literal.sign,
+                                )
+                            )
+                        if str(body_literal.atom.ast_type) == "ASTType.Comparison":
+                            continue
 
-            for h in head:
-                for comp in body:
-                    result.append(
-                        [
-                            comp[0],
-                            h,
-                            rule_no,
-                            "not" if comp[1] == 1 else "",
-                            is_disjunction,
-                        ]
-                    )
-        except BaseException as ex:
-            pass
-            print("err:", ex, str(dd))
+                    except BaseException as ex:
+                        print(
+                            "body err:",
+                            ex,
+                            str(body_literal.atom),
+                        )
+                        pass
 
-        minted_rules.append((rule_no, str(dd)))
-        rule_no += 1
+                #
+                for non_disjunctive_literal in head:
+                    for comp in body:
+                        if comp[1] == 0:
+                            not_string = ""
+                        elif comp[1] == 1:
+                            not_string = "not"
+                        elif comp[1] == 2:
+                            not_string = "not not"
+                        else:
+                            not_string = ""  # Or some other default value
+
+                        result.append(
+                            [
+                                comp[0],
+                                non_disjunctive_literal,
+                                rule_no,
+                                not_string,
+                                is_disjunction,
+                            ]
+                        )
+            # if this an parse error, print the rule content
+            except BaseException as ex:
+                pass
+                print("err:", ex, str(rule_content))
+
+            minted_rules.append((rule_no, str(rule_content)))
+            rule_no += 1
 
     return (result, minted_rules, prg)
 
 
 # the main function to extract rules
 def rule_vis(file_name):
-    file_name = [file_name]
+    filename = [file_name]
     G = pgv.AGraph(overlap=False, directed=True, rankdir="BT")
-    lst, mint_rl, prg = extract_rel(file_name)
+    lst, mint_rl, prg = extract_rel(filename)
 
     df = pd.DataFrame(
         lst,
@@ -104,6 +149,7 @@ def rule_vis(file_name):
             "is_disjunction",
         ],
     )
+    # print(df)
 
     for row_no in range(len(df)):
         rule_no = df.loc[row_no, "rule_no"]
@@ -167,13 +213,19 @@ def rule_vis(file_name):
             color="#b26e37",
         )
 
+    dir_path = "output"
+    # Check if the directory exists
+    if not os.path.isdir(dir_path):
+        # If it doesn't exist, create it
+        os.makedirs(dir_path)
+
     # save pdf
-    file = "output"
-    G.draw("{}.pdf".format(file), prog="dot")
+    file = file_name.split("/")[-1].split(".")[0]
+    G.draw("output/{}.pdf".format(file), prog="dot")
     # save png for display
-    G.draw("{}.png".format(file), prog="dot")
+    G.draw("output/{}.png".format(file), prog="dot")
     # save svg
-    G.draw("{}.svg".format(file), prog="dot")
+    G.draw("output/{}.svg".format(file), prog="dot")
     # save dot for rendering on web with tooltip
-    with open("{}.dot".format(file), "w") as file:
+    with open("output/{}.dot".format(file), "w") as file:
         file.write(G.to_string())
