@@ -41,7 +41,7 @@ def extract_rel(file_name):
                                 # relationship name
                                 literal_name=disjunctive_literal.literal.atom.symbol.name,
                                 # number of variables
-                                arity_names=len(temp_variable_ls),
+                                arity_names=temp_variable_ls,
                             )
                         )
                     is_disjunction = 1
@@ -58,7 +58,7 @@ def extract_rel(file_name):
                         head.append(
                             "{literal_name}/{arity_names}".format(
                                 literal_name=rule_content.head.atom.symbol.name,
-                                arity_names=len(temp_variable_ls),
+                                arity_names=temp_variable_ls,
                             )
                         )
                     except BaseException as ex:
@@ -83,7 +83,7 @@ def extract_rel(file_name):
                                 (
                                     "{literal_name}/{arity_names}".format(
                                         literal_name=body_literal.atom.symbol.name,
-                                        arity_names=len(temp_arg_ls),
+                                        arity_names=temp_arg_ls,
                                     ),
                                     # sign indicate whether the literal is
                                     # positive (0) negative (1) or not not(2)
